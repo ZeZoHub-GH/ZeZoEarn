@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rewards</title>
+<style>
+  :root {
+    --bg:#0f1220; --card:#181c30; --line:#262b47; --text:#e8eaf6;
+    --muted:#8d93b8; --accent:#6c7bff; --ok:#3ecf8e; --err:#ff6b6b;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 60px;
+  }
+  .wrap { max-width:720px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 20px; }
+  h2 { font-size:16px; margin:0 0 14px; color:var(--muted); font-weight:600; }
+  .card {
+    background:var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:20px; margin-bottom:18px;
+  }
+  .balance { font-size:40px; font-weight:700; letter-spacing:-1px; }
+  .balance small { font-size:16px; color:var(--muted); font-weight:500; }
+  .offers { display:grid; gap:10px; }
+  .offer {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px; border:1px solid var(--line); border-radius:10px;
+  }
+  .offer .name { font-weight:600; }
+  .offer .meta { font-size:13px; color:var(--muted); margin-top:2px; }
+  .reward { color:var(--ok); font-weight:600; white-space:nowrap; }
+  button, .btn {
+    background:var(--accent); color:#fff; border:0; border-radius:8px;
+    padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer;
+    text-decoration:none; display:inline-block;
+  }
+  button:hover, .btn:hover { filter:brightness(1.1); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.done { background:var(--line); color:var(--muted); pointer-events:none; }
+  label { display:block; font-size:13px; color:var(--muted); margin:0 0 6px; }
+  input {
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:11px 12px; font-size:15px; margin-bottom:14px;
+  }
+  input:focus { outline:2px solid var(--accent); border-color:transparent; }
+  .row { display:flex; gap:10px; }
+  .row input { margin-bottom:0; }
+  #msg { margin-top:12px; font-size:14px; min-height:20px; }
+  #msg.ok { color:var(--ok); } #msg.err { color:var(--err); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💸 Rewards</h1>
+
+  <div class="card">
+    <h2>Your Balance</h2>
+    <div class="balance"><span id="balance">0.00</span> <small id="cur"></small></div>
+  </div>
+
+  <div class="card">
+    <h2>Offers</h2>
+    <div class="offers" id="offers"></div>
+  </div>
+
+  <div class="card">
+    <h2>Payout via PayPal</h2>
+    <label for="user">PayPal email (PayPal only)</label>
+    <input id="user" type="email" autocomplete="email" placeholder="you@example.com">
+    <label for="amount">Amount</label>
+    <div class="row">
+      <input id="amount" type="number" step="0.01" min="0" placeholder="0.00">
+      <button id="max" type="button" style="background:var(--line)">Max</button>
+    </div>
+    <div style="height:14px"></div>
+    <button id="payout" type="button">Request payout</button>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIGURATION ================= */
+const CONFIG = {
+  currency: "€",
+  minPayout: 1.00,
+
+  // Discord webhook (or your own endpoint). WARNING: in a public repo this URL is visible to everyone!
+  webhookUrl: "https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN",
+
+  // Your offers: "url" = your Linkvertise / Work.ink / LootLabs link.
+  // In each provider's dashboard, set the destination URL to: https://YOURNAME.github.io/REPO/?done=<id>
+  offers: [
+    { id:"lv1",  provider:"Linkvertise", title:"Linkvertise Offer", reward:0.02, url:"https://link-center.net/7005087/xBMRXF16aI0I" },
+    { id:"wi1",  provider:"Work.ink",    title:"Work.ink Offer",    reward:0.05, url:"https://work.ink/2hRI/zezoearn" },
+    { id:"ll1",  provider:"LootLabs",    title:"LootLabs Offer",    reward:0.02, url:"https://lootdest.org/s?0XQUrxTj" }
+  ]
+};
+/* ================================================== */
+
+const KEY = "rewards_state_v1";
+const state = load();
+
+function load() {
+  try { return Object.assign({ balance:0, done:[] }, JSON.parse(localStorage.getItem(KEY))); }
+  catch { return { balance:0, done:[] }; }
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+const fmt = n => n.toFixed(2);
+const $ = id => document.getElementById(id);
+
+function render() {
+  $("balance").textContent = fmt(state.balance);
+  $("cur").textContent = CONFIG.currency;
+  $("offers").innerHTML = "";
+  CONFIG.offers.forEach(o => {
+    const done = state.done.includes(o.id);
+    const el = document.createElement("div");
+    el.className = "offer";
+    el.innerHTML = `
+      <div><div class="name"></div><div class="meta"></div></div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="reward">+${fmt(o.reward)} ${CONFIG.currency}</span>
+        <a class="btn ${done ? "done" : ""}" target="_blank" rel="noopener"></a>
+      </div>`;
+    el.querySelector(".name").textContent = o.title;
+    el.querySelector(".meta").textContent = o.provider;
+    const a = el.querySelector("a");
+    a.textContent = done ? "Completed" : "Start";
+    if (!done) a.href = o.url;
+    $("offers").appendChild(el);
+  });
+}
+
+// Return from an offer: ?done=<id>
+(function handleReturn() {
+  const id = new URLSearchParams(location.search).get("done");
+  if (!id) return;
+  const o = CONFIG.offers.find(x => x.id === id);
+  if (o && !state.done.includes(id)) {
+    state.balance = Math.round((state.balance + o.reward) * 100) / 100;
+    state.done.push(id);
+    save();
+  }
+  history.replaceState(null, "", location.pathname);
+})();
+
+function msg(text, type) { const m = $("msg"); m.textContent = text; m.className = type || ""; }
+
+$("max").onclick = () => { $("amount").value = fmt(state.balance); };
+
+$("payout").onclick = async () => {
+  const user = $("user").value.trim();
+  const amount = Math.round(parseFloat($("amount").value) * 100) / 100;
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user)) return msg("Please enter a valid PayPal email.", "err");
+  if (!amount || amount <= 0) return msg("Please enter a valid amount.", "err");
+  if (amount < CONFIG.minPayout) return msg(`Minimum payout: ${fmt(CONFIG.minPayout)} ${CONFIG.currency}`, "err");
+  if (amount > state.balance) return msg("Insufficient balance.", "err");
+
+  $("payout").disabled = true;
+  msg("Sending request…");
+  try {
+    const res = await fetch(CONFIG.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: "💸 **New PayPal payout request**",
+        embeds: [{
+          color: 0x6c7bff,
+          fields: [
+            { name: "Method", value: "PayPal", inline: true },
+            { name: "PayPal email", value: user, inline: true },
+            { name: "Amount",  value: `${fmt(amount)} ${CONFIG.currency}`, inline: true },
+            { name: "Balance before", value: `${fmt(state.balance)} ${CONFIG.currency}`, inline: true }
+          ],
+          timestamp: new Date().toISOString()
+        }]
+      })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    state.balance = Math.round((state.balance - amount) * 100) / 100;
+    save(); render();
+    $("amount").value = "";
+    msg("Payout requested ✔", "ok");
+  } catch (e) {
+    msg("Failed to send: " + e.message, "err");
+  } finally {
+    $("payout").disabled = false;
+  }
+};
+
+render();
+</script>
+</body>
+</html>
