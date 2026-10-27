@@ -2,196 +2,457 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rewards</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- ======================================================================
+     CONFIG - change everything here, no need to touch the code below
+     ====================================================================== -->
+<script>
+const CONFIG = {
+
+  // ---------- Earn More button ----------
+  earnLinks: [                       // one is picked at random on every click
+    "https://work.ink/2hRI/zezoearn"
+  ],
+  openInNewTab: false,
+
+  // ---------- Currency ----------
+  defaultCurrency: "USD",
+  currencies: ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "SEK", "NOK", "PLN", "TRY", "INR", "BRL"],
+  showCurrencyDropdown: true,
+  useLiveRates: true,                // false = only use fallbackRates below
+  ratesUrl: "https://api.frankfurter.dev/v1/latest?base=EUR",
+  fallbackRates: {                   // 1 EUR = x (used if live rates fail)
+    EUR: 1, USD: 1.08, GBP: 0.85, CHF: 0.94, JPY: 165, CAD: 1.47, AUD: 1.65,
+    CNY: 7.8, SEK: 11.5, NOK: 11.7, PLN: 4.3, TRY: 35, INR: 90, BRL: 6.0
+  },
+
+  // ---------- URL parameters (amounts in the URL are ALWAYS euros) ----------
+  // Example: ?amount=50   or   ?pc=100&mobile=50&tablet=75   or   ?currency=GBP
+  params: {
+    amount: "amount",                // fallback amount for all platforms
+    pc: "pc",
+    mobile: "mobile",
+    tablet: "tablet",
+    currency: "currency"
+  },
+  cleanUrlAfterUse: true,            // remove parameters so reload does not add again
+
+  // ---------- Storage ----------
+  balanceKey: "balance",             // balance is stored in EUR
+  currencyKey: "currency",
+
+  // ---------- Texts ----------
+  texts: {
+    pageTitle: "Your Balance",
+    label: "Your Balance",
+    earnButton: "Earn More",
+    added: "+{amount} added",
+    noAmount: "No amount for this device in the URL.",
+    invalidAmount: "Invalid amount in the URL."
+  },
+
+  // ---------- Colors ----------
+  colors: {
+    backgroundCenter: "#1e1b4b",
+    backgroundMid: "#0f172a",
+    backgroundEdge: "#020617",
+    cardBackground: "#1e293b",
+    cardBorder: "#6366f1",
+    glow1: "#6366f1",                // main glow
+    glow2: "#22c55e",                // secondary glow
+    text: "#f1f5f9",
+    labelText: "#94a3b8",
+    success: "#4ade80",
+    error: "#f87171",
+    buttonFrom: "#22c55e",
+    buttonTo: "#16a34a",
+    buttonText: "#052e16"
+  },
+
+  // ---------- Effects / performance ----------
+  effects: {
+    cardGlow: true,                  // glowing card
+    glowSpeedSeconds: 3.5,
+    glowStrength: 1,                 // 0.5 = subtle, 1 = normal, 1.5 = strong
+    textGlow: true,                  // glow on the balance number
+    backgroundAnimation: true,       // slowly moving background lights
+    backgroundSpeedSeconds: 16,
+    countUp: true,                   // animate balance counting up
+    countUpDurationMs: 1000,
+    entryAnimation: true,            // fade-in on page load
+    hoverEffects: true
+  }
+};
+</script>
+<!-- ====================================================================== -->
+
+<title>ZeZoEarn</title>
 <style>
+  * { box-sizing: border-box; }
+
   :root {
-    --bg:#0f1220; --card:#181c30; --line:#262b47; --text:#e8eaf6;
-    --muted:#8d93b8; --accent:#6c7bff; --ok:#3ecf8e; --err:#ff6b6b;
+    --bg-center: #1e1b4b; --bg-mid: #0f172a; --bg-edge: #020617;
+    --card-bg: #1e293b; --card-border: #6366f1;
+    --glow-1: rgba(99,102,241,.6); --glow-2: rgba(34,197,94,.3);
+    --text: #f1f5f9; --label: #94a3b8; --ok: #4ade80; --err: #f87171;
+    --btn-from: #22c55e; --btn-to: #16a34a; --btn-text: #052e16;
+    --glow-speed: 3.5s; --bg-speed: 16s;
   }
-  * { box-sizing:border-box; }
+
+  html, body { height: 100%; }
   body {
-    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    background:var(--bg); color:var(--text); padding:24px 16px 60px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color: var(--text);
+    background: radial-gradient(circle at 50% 40%, var(--bg-center) 0%, var(--bg-mid) 55%, var(--bg-edge) 100%);
+    overflow: hidden;
   }
-  .wrap { max-width:720px; margin:0 auto; }
-  h1 { font-size:22px; margin:0 0 20px; }
-  h2 { font-size:16px; margin:0 0 14px; color:var(--muted); font-weight:600; }
+
+  /* Background lights: plain gradients (no blur filter) moved with transform only = cheap */
+  .bg {
+    position: fixed;
+    inset: -20%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 25%, var(--glow-1) 0, transparent 28%),
+      radial-gradient(circle at 80% 78%, var(--glow-2) 0, transparent 28%);
+    opacity: .35;
+    will-change: transform;
+  }
+  .bg.animated { animation: drift var(--bg-speed) ease-in-out infinite alternate; }
+  @keyframes drift {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(5%, 4%, 0); }
+  }
+
   .card {
-    background:var(--card); border:1px solid var(--line);
-    border-radius:14px; padding:20px; margin-bottom:18px;
+    position: relative;
+    z-index: 1;
+    background: var(--card-bg);
+    padding: 44px 56px;
+    border-radius: 24px;
+    text-align: center;
+    max-width: 92%;
+    border: 1px solid var(--card-border);
+    transition: transform .3s ease;
+    will-change: transform;
   }
-  .balance { font-size:40px; font-weight:700; letter-spacing:-1px; }
-  .balance small { font-size:16px; color:var(--muted); font-weight:500; }
-  .offers { display:grid; gap:10px; }
-  .offer {
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:14px; border:1px solid var(--line); border-radius:10px;
+  .card.entry { animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both; }
+  .card.hover:hover { transform: translate3d(0, -4px, 0); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translate3d(0, 24px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
   }
-  .offer .name { font-weight:600; }
-  .offer .meta { font-size:13px; color:var(--muted); margin-top:2px; }
-  .reward { color:var(--ok); font-weight:600; white-space:nowrap; }
-  button, .btn {
-    background:var(--accent); color:#fff; border:0; border-radius:8px;
-    padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer;
-    text-decoration:none; display:inline-block;
+
+  /* Glow: static shadow on a layer, only its opacity is animated (no repaint = no lag) */
+  .card .glow {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    opacity: .65;
+    box-shadow:
+      0 0 30px var(--glow-1),
+      0 0 90px var(--glow-1),
+      0 0 160px var(--glow-2);
+    will-change: opacity;
   }
-  button:hover, .btn:hover { filter:brightness(1.1); }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  .btn.done { background:var(--line); color:var(--muted); pointer-events:none; }
-  label { display:block; font-size:13px; color:var(--muted); margin:0 0 6px; }
-  input {
-    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
-    border-radius:8px; padding:11px 12px; font-size:15px; margin-bottom:14px;
+  .card .glow.animated { animation: pulse var(--glow-speed) ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: .45; }
+    50%      { opacity: 1; }
   }
-  input:focus { outline:2px solid var(--accent); border-color:transparent; }
-  .row { display:flex; gap:10px; }
-  .row input { margin-bottom:0; }
-  #msg { margin-top:12px; font-size:14px; min-height:20px; }
-  #msg.ok { color:var(--ok); } #msg.err { color:var(--err); }
+
+  .label {
+    color: var(--label);
+    font-size: 13px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+
+  .balance {
+    font-size: clamp(40px, 11vw, 64px);
+    font-weight: 800;
+    margin: 14px 0 12px;
+    font-variant-numeric: tabular-nums;
+    transition: transform .25s ease;
+  }
+  .balance.textglow { text-shadow: 0 0 16px var(--glow-1); }
+  .balance.pop { transform: scale(1.08); }
+
+  .currency { margin-bottom: 8px; }
+  .currency select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: rgba(15, 23, 42, .9);
+    color: #cbd5e1;
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 8px 32px 8px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+  .currency select:focus { border-color: #a5b4fc; }
+
+  .message {
+    min-height: 24px;
+    color: var(--ok);
+    font-size: 15px;
+    margin-bottom: 22px;
+    opacity: 0;
+    transition: opacity .4s ease;
+  }
+  .message.show { opacity: 1; }
+  .message.error { color: var(--err); }
+
+  .earn {
+    display: inline-block;
+    padding: 15px 36px;
+    background: linear-gradient(135deg, var(--btn-from), var(--btn-to));
+    color: var(--btn-text);
+    font-weight: 700;
+    font-size: 16px;
+    border-radius: 14px;
+    text-decoration: none;
+    transition: transform .2s ease, filter .2s ease;
+  }
+  .earn.hover:hover { transform: translate3d(0, -3px, 0) scale(1.04); filter: brightness(1.12); }
+  .earn:active { transform: scale(.97); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bg, .card .glow, .card { animation: none !important; }
+  }
+  @media (max-width: 480px) {
+    .card { padding: 36px 28px; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>💸 Rewards</h1>
-
-  <div class="card">
-    <h2>Your Balance</h2>
-    <div class="balance"><span id="balance">0.00</span> <small id="cur"></small></div>
-  </div>
-
-  <div class="card">
-    <h2>Offers</h2>
-    <div class="offers" id="offers"></div>
-  </div>
-
-  <div class="card">
-    <h2>Payout via PayPal</h2>
-    <label for="user">PayPal email (PayPal only)</label>
-    <input id="user" type="email" autocomplete="email" placeholder="you@example.com">
-    <label for="amount">Amount</label>
-    <div class="row">
-      <input id="amount" type="number" step="0.01" min="0" placeholder="0.00">
-      <button id="max" type="button" style="background:var(--line)">Max</button>
+  <div class="bg" id="bg"></div>
+  <div class="card" id="card">
+    <div class="glow" id="glow"></div>
+    <div class="label" id="label"></div>
+    <div class="balance" id="balance">0.00</div>
+    <div class="currency" id="currencyWrap">
+      <select id="currency" aria-label="Currency"></select>
     </div>
-    <div style="height:14px"></div>
-    <button id="payout" type="button">Request payout</button>
-    <div id="msg"></div>
+    <div class="message" id="message"></div>
+    <a class="earn" id="earn" href="#"></a>
   </div>
-</div>
 
 <script>
-/* ================= CONFIGURATION ================= */
-const CONFIG = {
-  currency: "€",
-  minPayout: 1.00,
+(function () {
+  var C = CONFIG, E = C.effects, P = C.params;
 
-  // Discord webhook (or your own endpoint). WARNING: in a public repo this URL is visible to everyone!
-  webhookUrl: "https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN",
+  var $ = function (id) { return document.getElementById(id); };
+  var balanceEl = $("balance"), messageEl = $("message"), currencyEl = $("currency"),
+      earnEl = $("earn"), cardEl = $("card"), glowEl = $("glow"), bgEl = $("bg");
 
-  // Your offers: "url" = your Linkvertise / Work.ink / LootLabs link.
-  // In each provider's dashboard, set the destination URL to: https://YOURNAME.github.io/REPO/?done=<id>
-  offers: [
-    { id:"lv1",  provider:"Linkvertise", title:"Linkvertise Offer", reward:0.02, url:"https://link-center.net/7005087/xBMRXF16aI0I" },
-    { id:"wi1",  provider:"Work.ink",    title:"Work.ink Offer",    reward:0.05, url:"https://work.ink/2hRI/zezoearn" },
-    { id:"ll1",  provider:"LootLabs",    title:"LootLabs Offer",    reward:0.02, url:"https://lootdest.org/s?0XQUrxTj" }
-  ]
-};
-/* ================================================== */
+  // ---------- Apply config: texts ----------
+  document.title = C.texts.pageTitle;
+  $("label").textContent = C.texts.label;
+  earnEl.textContent = C.texts.earnButton;
 
-const KEY = "rewards_state_v1";
-const state = load();
+  // ---------- Apply config: colors / effects ----------
+  function rgba(hex, a) {
+    var h = hex.replace("#", "");
+    if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join("");
+    var n = parseInt(h, 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+  var root = document.documentElement.style, k = C.colors;
+  var gs = Math.max(0, E.glowStrength);
+  root.setProperty("--bg-center", k.backgroundCenter);
+  root.setProperty("--bg-mid", k.backgroundMid);
+  root.setProperty("--bg-edge", k.backgroundEdge);
+  root.setProperty("--card-bg", k.cardBackground);
+  root.setProperty("--card-border", rgba(k.cardBorder, .4));
+  root.setProperty("--glow-1", rgba(k.glow1, Math.min(1, .55 * gs)));
+  root.setProperty("--glow-2", rgba(k.glow2, Math.min(1, .3 * gs)));
+  root.setProperty("--text", k.text);
+  root.setProperty("--label", k.labelText);
+  root.setProperty("--ok", k.success);
+  root.setProperty("--err", k.error);
+  root.setProperty("--btn-from", k.buttonFrom);
+  root.setProperty("--btn-to", k.buttonTo);
+  root.setProperty("--btn-text", k.buttonText);
+  root.setProperty("--glow-speed", E.glowSpeedSeconds + "s");
+  root.setProperty("--bg-speed", E.backgroundSpeedSeconds + "s");
 
-function load() {
-  try { return Object.assign({ balance:0, done:[] }, JSON.parse(localStorage.getItem(KEY))); }
-  catch { return { balance:0, done:[] }; }
-}
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
-const fmt = n => n.toFixed(2);
-const $ = id => document.getElementById(id);
+  if (E.cardGlow) glowEl.classList.add("animated"); else glowEl.style.display = "none";
+  if (E.backgroundAnimation) bgEl.classList.add("animated");
+  if (E.textGlow) balanceEl.classList.add("textglow");
+  if (E.entryAnimation) cardEl.classList.add("entry");
+  if (E.hoverEffects) { cardEl.classList.add("hover"); earnEl.classList.add("hover"); }
+  if (!C.showCurrencyDropdown) $("currencyWrap").style.display = "none";
 
-function render() {
-  $("balance").textContent = fmt(state.balance);
-  $("cur").textContent = CONFIG.currency;
-  $("offers").innerHTML = "";
-  CONFIG.offers.forEach(o => {
-    const done = state.done.includes(o.id);
-    const el = document.createElement("div");
-    el.className = "offer";
-    el.innerHTML = `
-      <div><div class="name"></div><div class="meta"></div></div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <span class="reward">+${fmt(o.reward)} ${CONFIG.currency}</span>
-        <a class="btn ${done ? "done" : ""}" target="_blank" rel="noopener"></a>
-      </div>`;
-    el.querySelector(".name").textContent = o.title;
-    el.querySelector(".meta").textContent = o.provider;
-    const a = el.querySelector("a");
-    a.textContent = done ? "Completed" : "Start";
-    if (!done) a.href = o.url;
-    $("offers").appendChild(el);
+  // ---------- Platform (not displayed) ----------
+  function detectPlatform() {
+    var ua = navigator.userAgent || "";
+    var isTablet = /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+      (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (isTablet) return "tablet";
+    if (/Mobi|iPhone|iPod|Android/i.test(ua)) return "mobile";
+    return "pc";
+  }
+  var platform = detectPlatform();
+
+  // ---------- Random link ----------
+  earnEl.addEventListener("click", function (e) {
+    e.preventDefault();
+    var link = C.earnLinks[Math.floor(Math.random() * C.earnLinks.length)];
+    if (C.openInNewTab) window.open(link, "_blank", "noopener");
+    else window.location.href = link;
   });
-}
 
-// Return from an offer: ?done=<id>
-(function handleReturn() {
-  const id = new URLSearchParams(location.search).get("done");
-  if (!id) return;
-  const o = CONFIG.offers.find(x => x.id === id);
-  if (o && !state.done.includes(id)) {
-    state.balance = Math.round((state.balance + o.reward) * 100) / 100;
-    state.done.push(id);
-    save();
+  // ---------- Storage ----------
+  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function save(key, v) { try { localStorage.setItem(key, String(v)); } catch (e) {} }
+  function getBalance() {
+    var v = parseFloat(load(C.balanceKey));
+    return isFinite(v) ? v : 0;
   }
-  history.replaceState(null, "", location.pathname);
-})();
 
-function msg(text, type) { const m = $("msg"); m.textContent = text; m.className = type || ""; }
+  // ---------- Currency ----------
+  var params = new URLSearchParams(window.location.search);
+  var rates = Object.assign({}, C.fallbackRates);
 
-$("max").onclick = () => { $("amount").value = fmt(state.balance); };
+  function pickCurrency() {
+    var fromUrl = (params.get(P.currency) || "").toUpperCase();
+    if (C.currencies.indexOf(fromUrl) !== -1) { save(C.currencyKey, fromUrl); return fromUrl; }
+    var stored = load(C.currencyKey);
+    if (stored && C.currencies.indexOf(stored) !== -1) return stored;
+    return C.defaultCurrency;
+  }
+  var currency = pickCurrency();
 
-$("payout").onclick = async () => {
-  const user = $("user").value.trim();
-  const amount = Math.round(parseFloat($("amount").value) * 100) / 100;
+  C.currencies.forEach(function (code) {
+    var o = document.createElement("option");
+    o.value = code; o.textContent = code;
+    currencyEl.appendChild(o);
+  });
+  currencyEl.value = currency;
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user)) return msg("Please enter a valid PayPal email.", "err");
-  if (!amount || amount <= 0) return msg("Please enter a valid amount.", "err");
-  if (amount < CONFIG.minPayout) return msg(`Minimum payout: ${fmt(CONFIG.minPayout)} ${CONFIG.currency}`, "err");
-  if (amount > state.balance) return msg("Insufficient balance.", "err");
+  // Formatter is created once per currency (creating it every frame was a main cause of lag)
+  var formatter = null;
+  function buildFormatter() {
+    try {
+      formatter = new Intl.NumberFormat("en-US", {
+        style: "currency", currency: currency, currencyDisplay: "narrowSymbol"
+      });
+    } catch (e) { formatter = null; }
+  }
+  buildFormatter();
 
-  $("payout").disabled = true;
-  msg("Sending request…");
-  try {
-    const res = await fetch(CONFIG.webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: "💸 **New PayPal payout request**",
-        embeds: [{
-          color: 0x6c7bff,
-          fields: [
-            { name: "Method", value: "PayPal", inline: true },
-            { name: "PayPal email", value: user, inline: true },
-            { name: "Amount",  value: `${fmt(amount)} ${CONFIG.currency}`, inline: true },
-            { name: "Balance before", value: `${fmt(state.balance)} ${CONFIG.currency}`, inline: true }
-          ],
-          timestamp: new Date().toISOString()
-        }]
+  function format(eur) {
+    var v = eur * (rates[currency] || 1);
+    return formatter ? formatter.format(v) : v.toFixed(2) + " " + currency;
+  }
+
+  // ---------- Display ----------
+  var shownEur = 0, targetEur = 0, lastText = "";
+
+  function render() {
+    var t = format(shownEur);
+    if (t !== lastText) { balanceEl.textContent = t; lastText = t; }
+  }
+  function pop() {
+    balanceEl.classList.add("pop");
+    setTimeout(function () { balanceEl.classList.remove("pop"); }, 250);
+  }
+  function animateTo(target, duration) {
+    targetEur = target;
+    if (!E.countUp || duration <= 0) { shownEur = target; render(); pop(); return; }
+    var start = shownEur, t0 = performance.now();
+    function frame(now) {
+      var p = Math.min((now - t0) / duration, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      shownEur = start + (target - start) * eased;
+      render();
+      if (p < 1) requestAnimationFrame(frame);
+      else { shownEur = target; render(); }
+    }
+    requestAnimationFrame(frame);
+    pop();
+  }
+  function showMessage(text, isError) {
+    messageEl.textContent = text;
+    messageEl.classList.toggle("error", !!isError);
+    messageEl.classList.add("show");
+  }
+
+  currencyEl.addEventListener("change", function () {
+    currency = currencyEl.value;
+    save(C.currencyKey, currency);
+    buildFormatter();
+    lastText = "";
+    shownEur = targetEur;
+    render();
+    pop();
+  });
+
+  // Live exchange rates (optional)
+  if (C.useLiveRates) {
+    fetch(C.ratesUrl)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.rates) {
+          rates = Object.assign({}, rates, d.rates, { EUR: 1 });
+          lastText = "";
+          render();
+        }
       })
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    state.balance = Math.round((state.balance - amount) * 100) / 100;
-    save(); render();
-    $("amount").value = "";
-    msg("Payout requested ✔", "ok");
-  } catch (e) {
-    msg("Failed to send: " + e.message, "err");
-  } finally {
-    $("payout").disabled = false;
+      .catch(function () {});
   }
-};
 
-render();
+  // ---------- Amount from URL (always EUR) ----------
+  function readAmount() {
+    var raw = params.has(P[platform]) ? params.get(P[platform]) : params.get(P.amount);
+    return raw === null ? null : parseFloat(raw);
+  }
+
+  // ---------- Start ----------
+  var current = getBalance();
+  var hasParam = [P.amount, P.pc, P.mobile, P.tablet].some(function (n) { return params.has(n); });
+
+  shownEur = current;
+  targetEur = current;
+  render();
+
+  if (hasParam) {
+    var amount = readAmount();
+    if (amount !== null && isFinite(amount) && amount > 0) {
+      var total = current + amount;
+      save(C.balanceKey, total);
+      targetEur = total;
+      setTimeout(function () {
+        animateTo(total, C.effects.countUpDurationMs);
+        showMessage(C.texts.added.replace("{amount}", format(amount)));
+      }, 400);
+    } else if (amount === null) {
+      showMessage(C.texts.noAmount, true);
+    } else {
+      showMessage(C.texts.invalidAmount, true);
+    }
+  }
+
+  if (C.cleanUrlAfterUse && params.toString()) {
+    history.replaceState(null, "", window.location.pathname);
+  }
+})();
 </script>
 </body>
 </html>
