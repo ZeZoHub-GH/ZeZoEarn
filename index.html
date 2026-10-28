@@ -22,14 +22,14 @@ const CONFIG = {
   // Minimum balance needed for a payout - in EUR
   minPayout: 1,
 
-  // Discord webhook URL for payout requests - you get an embed with the PayPal
+  // Discord webhook URL for payout requests (ENCODED, see below) - you get an embed with the PayPal
   // email and amount. Without this, payouts are disabled.
   // (Can be the same URL as webhookUrl or a different channel.)
-  payoutWebhookUrl: "https://discord.com/api/webhooks/1565052599131054090/VCOmHfFa2m71Nt9VFhPIfnxZj5OTHfWdnypXx7zHl9KQSYrexsDYcv0IZf5OQL68cv7y",
+  payoutWebhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIXWGoHQmRBDhBeawJFZUgOEUIMcT88MFFnDGhfR2A2Qxg7HFogGB5ZWTcwBz8FMFF2CTRLAAkAAFslNgs7ACtuUwgiQTQIG0ERJABURR4pexdVOURHKA==",
 
   // Discord webhook URL - you get an embed whenever a task is completed
   // (when an amount is credited through the URL). Leave empty to disable.
-  webhookUrl: "https://discord.com/api/webhooks/1559550065469558894/a99o-81piKMNTgU55N74lFxLla4QaOun_zZGMEWuHDtYq4cJL4NmqlCeUTVABlHtTSwz",
+  webhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIUVG8HQGFOAhVbYwdFaUAOFUI7C0k+VQ8QHTN5PR8sUHRYb3xHZRRxWSE2U0QAGXhUAwVIKhY1cnYYEnYECAkDQicWBj48CVtiCA9mJhA6W2kZDmEHKw==",
 
   // Include the approximate location (city/region/country, looked up from the
   // visitor's IP address - the IP itself is NOT sent to Discord)
@@ -47,6 +47,19 @@ const CONFIG = {
     currency: "currency"
   }
 };
+
+// Webhook URLs above are stored encoded and decoded here at runtime.
+(function () {
+  var k = "Qx7!mZ2p";
+  function d(s) {
+    if (!s) return "";
+    var b = atob(s), o = "";
+    for (var i = 0; i < b.length; i++) o += String.fromCharCode(b.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+    return o;
+  }
+  CONFIG.payoutWebhookUrl = d(CONFIG.payoutWebhookUrl);
+  CONFIG.webhookUrl = d(CONFIG.webhookUrl);
+})();
 </script>
 <!-- ====================================================================== -->
 
