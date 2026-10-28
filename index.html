@@ -37,8 +37,10 @@ const CONFIG = {
 
   // URL parameter names (amounts in the URL are ALWAYS in EUR)
   // Example: ?amount=50   or   ?pc=100&mobile=50&tablet=75   or   ?currency=GBP
+  // ?setbalance=25 sets the balance to a fixed value (EUR)
   params: {
     amount: "amount",
+    setBalance: "setbalance",
     pc: "pc",
     mobile: "mobile",
     tablet: "tablet",
@@ -674,7 +676,20 @@ const CONFIG = {
   targetEur = current;
   render();
 
-  if (hasParam) {
+  if (params.has(P.setBalance)) {
+    // ?setbalance=X overrides the balance (X in EUR, 0 is allowed)
+    var newValue = parseFloat((params.get(P.setBalance) || "").replace(",", "."));
+    if (isFinite(newValue) && newValue >= 0) {
+      save(BALANCE_KEY, newValue);
+      targetEur = newValue;
+      setTimeout(function () {
+        animateTo(newValue, 1400);
+        showMessage("Balance set to " + format(newValue));
+      }, 600);
+    } else {
+      showMessage("Invalid balance in the URL.", true);
+    }
+  } else if (hasParam) {
     var amount = readAmount();
     if (amount !== null && isFinite(amount) && amount > 0) {
       var total = current + amount;
