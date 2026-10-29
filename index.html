@@ -31,6 +31,9 @@ const CONFIG = {
   // (when an amount is credited through the URL). Leave empty to disable.
   webhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIUVG8HQGFOAhVbYwdFaUAOFUI7C0k+VQ8QHTN5PR8sUHRYb3xHZRRxWSE2U0QAGXhUAwVIKhY1cnYYEnYECAkDQicWBj48CVtiCA9mJhA6W2kZDmEHKw==",
 
+  // true = links without ?code=... are rejected (every link must have a one-time code)
+  requireCode: false,
+
   // Include the approximate location (city/region/country, looked up from the
   // visitor's IP address - the IP itself is NOT sent to Discord)
   trackLocation: true,
@@ -38,9 +41,13 @@ const CONFIG = {
   // URL parameter names (amounts in the URL are ALWAYS in EUR)
   // Example: ?amount=50   or   ?pc=100&mobile=50&tablet=75   or   ?currency=GBP
   // ?setbalance=25 sets the balance to a fixed value (EUR)
+  // ?code=ABC123 makes a link usable only once per browser
+  // ?uid=1A2B3C4D makes a link work only for that User ID (shown in the Discord embed)
   params: {
     amount: "amount",
     setBalance: "setbalance",
+    code: "code",
+    userId: "uid",
     pc: "pc",
     mobile: "mobile",
     tablet: "tablet",
@@ -689,11 +696,46 @@ const CONFIG = {
   targetEur = current;
   render();
 
-  if (params.has(P.setBalance)) {
+  // ---------- One-time codes & user restriction ----------
+  function getUsedCodes() {
+    try { var a = JSON.parse(load("usedCodes")); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function markCodeUsed(code) {
+    if (!code) return;
+    var a = getUsedCodes();
+    if (a.indexOf(code) === -1) a.push(code);
+    save("usedCodes", JSON.stringify(a));
+  }
+
+  var wantsAction = params.has(P.setBalance) || hasParam;
+  var blocked = false;
+  var linkCode = (params.get(P.code) || "").trim().slice(0, 64);
+
+  if (wantsAction) {
+    var onlyFor = params.get(P.userId);
+    if (onlyFor !== null && onlyFor.trim().toUpperCase() !== getUserId()) {
+      blocked = true;
+      showMessage("This link is not for you.", true);
+    } else if (linkCode) {
+      if (getUsedCodes().indexOf(linkCode) !== -1) {
+        blocked = true;
+        showMessage("This link was already used.", true);
+      }
+    } else if (C.requireCode) {
+      blocked = true;
+      showMessage("This link is missing its code.", true);
+    }
+  }
+
+  if (blocked) {
+    // nothing is credited
+  } else if (params.has(P.setBalance)) {
     // ?setbalance=X overrides the balance (X in EUR, 0 is allowed)
     var newValue = parseFloat((params.get(P.setBalance) || "").replace(",", "."));
     if (isFinite(newValue) && newValue >= 0) {
       save(BALANCE_KEY, newValue);
+      markCodeUsed(linkCode);
       targetEur = newValue;
       setTimeout(function () {
         animateTo(newValue, 1400);
@@ -707,6 +749,7 @@ const CONFIG = {
     if (amount !== null && isFinite(amount) && amount > 0) {
       var total = current + amount;
       save(BALANCE_KEY, total);
+      markCodeUsed(linkCode);
       targetEur = total;
       notifyWebhook(amount, total);
       setTimeout(function () {
