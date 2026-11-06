@@ -25,9 +25,8 @@ const CONFIG = {
   payoutWebhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIXWGoHQmRBDhBeawJFZUgOEUIMcT88MFFnDGhfR2A2Qxg7HFogGB5ZWTcwBz8FMFF2CTRLAAkAAFslNgs7ACtuUwgiQTQIG0ERJABURR4pexdVOURHKA==",
   webhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIUVG8HQGFOAhVbYwdFaUAOFUI7C0k+VQ8QHTN5PR8sUHRYb3xHZRRxWSE2U0QAGXhUAwVIKhY1cnYYEnYECAkDQicWBj48CVtiCA9mJhA6W2kZDmEHKw==",
 
-  // Banned User IDs. The list in banListUrl (JSON array, e.g. ["1A2B3C4D"]) is re-checked in the background.
+  // Banned User IDs, e.g. ["1A2B3C4D", "9F8E7D6C"]. Changes are picked up in the background.
   bannedUserIds: [],
-  banListUrl: "banned.json",
   checkIntervalSeconds: 10,
 
   // true = links without ?code=... are rejected
@@ -562,12 +561,12 @@ const CONFIG = {
   }
 
   function checkBans() {
-    if (!C.banListUrl) { applyBan(); return Promise.resolve(); }
-    var url = C.banListUrl + (C.banListUrl.indexOf("?") === -1 ? "?" : "&") + "t=" + Date.now();
-    return fetch(url, { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error("status"); return r.json(); })
-      .then(function (d) {
-        remoteBans = Array.isArray(d) ? d : (d && Array.isArray(d.banned) ? d.banned : []);
+    return fetch(window.location.pathname + "?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("status"); return r.text(); })
+      .then(function (html) {
+        var m = html.match(/bannedUserIds:\s*\[([^\]]*)\]/);
+        var ids = m ? (m[1].match(/"[^"]*"|'[^']*'/g) || []) : [];
+        remoteBans = ids.map(function (s) { return s.slice(1, -1); });
         applyBan();
       })
       .catch(function () { applyBan(); });
